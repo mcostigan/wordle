@@ -1,4 +1,5 @@
 import random
+import threading
 from typing import List, Optional, Type
 
 from models.wordle_guesser import WordleGuesser
@@ -27,11 +28,20 @@ class EvaluationService:
             MplService.histogram(evaluation.guesser_name, evaluation, x_label="# of guesses")
 
     def _evaluate_guessers(self) -> List[Evaluation]:
+        def threaded_evaluator(guesser: WordleGuesser, sample_words: List[str], results: List[Evaluation]):
+            results.append(self._evaluate_guesser(guesser, sample_words))
+
         sample_words = random.sample(self.candidates, self.sample_size)
         results = []
+        threads = []
         for guesser in self.guessers:
-            evaluation = self._evaluate_guesser(guesser, sample_words)
-            results.append(evaluation)
+            thread = threading.Thread(target=threaded_evaluator, args=(guesser, sample_words, results))
+            thread.start()
+            threads.append(thread)
+
+        for thread in threads:
+            thread.join()
+
         return results
 
     def _evaluate_guesser(self, guesser: WordleGuesser, sample_words: List[str]) -> Evaluation:
